@@ -16,6 +16,7 @@ def test_strategy(accounts, interface, chain, web3, history, YearnCompDaiStrateg
     vault = interface.IVault(controller.vaults(dai))
     strategy = YearnCompDaiStrategy.deploy(controller, {'from': user})
     assert strategy.want() == vault.token() == dai
+    strategy.setWithdrawalFee(0)
     strategy.setCollateralTarget(3900)
     with brownie.reverts("Target too close to 4x leverage"):
         strategy.setCollateralTarget(4000)
@@ -31,7 +32,8 @@ def test_strategy(accounts, interface, chain, web3, history, YearnCompDaiStrateg
     vault.earn({'from': user})
     print('balance of strategy:', strategy.balanceOf().to('ether'))
 
-    amount = dai.balanceOf(whale)
+    user_before = dai.balanceOf(whale)
+    amount = Wei('1000000 ether')
     dai.approve(vault, amount, {'from': whale})
     print('deposit amount:', amount.to('ether'))
     vault.deposit(amount, {'from': whale})
@@ -49,7 +51,7 @@ def test_strategy(accounts, interface, chain, web3, history, YearnCompDaiStrateg
         print(f'leverage: {leverage:.5f}x')
         print('liquidity:', strategy.getLiquidity().to('ether'))
         if leverage >= strategy.leverageTarget() / 1001:
-            print('target leverage reached')
+            print('\ntarget leverage reached')
             break
     
     print('\nharvest')
@@ -63,7 +65,8 @@ def test_strategy(accounts, interface, chain, web3, history, YearnCompDaiStrateg
     print('balance increase:', (after - before).to('ether'))
     print(f'implied apr: {(after / before - 1) * (blocks_per_year / sample):.8%}')
 
+    # FIXME: large withdrawals fail
     vault.withdrawAll({'from': whale})
-    after = dai.balanceOf(whale)
-    print(f'\nuser balance increase:', (after - amount).to('ether'))
-    assert after >= amount
+    user_after = dai.balanceOf(whale)
+    print(f'\nuser balance increase:', (user_after - user_before).to('ether'))
+    assert user_after >= user_before
